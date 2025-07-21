@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GrandMA2 OnPC Command Interface</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gma-button {
+            @apply bg-gray-800 border border-gray-600 text-white font-mono text-sm hover:bg-gray-700 active:bg-gray-600 transition-colors duration-100;
+            font-family: 'Courier New', monospace;
+        }
+        .gma-display {
+            background: linear-gradient(to bottom, #1a1a1a, #0a0a0a);
+            font-family: 'Courier New', monospace;
+        }
+        .gma-encoder {
+            background: radial-gradient(circle, #2a2a2a, #1a1a1a);
+        }
+        .gma-fader {
+            background: linear-gradient(to right, #333, #555);
+        }
+    </style>
+</head>
+<body class="bg-black text-white font-mono">
+    <div id="app" class="min-h-screen bg-gray-900">
+        <!-- Header -->
+        <div class="bg-black p-4 border-b border-gray-700">
+            <div class="flex items-center justify-between">
+                <h1 class="text-xl font-bold">GrandMA2 OnPC v3.1.2.5 - Command Interface</h1>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <div :class="['w-3 h-3 rounded-full', connectionStatus === 'connected' ? 'bg-green-500' : connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500']"></div>
+                        <span class="text-sm">{{ connectionStatus }}</span>
+                    </div>
+                    <button @click="toggleConnection" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm">
+                        {{ isConnected ? 'Disconnect' : 'Connect' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex h-screen">
+            <!-- Main Command Area -->
+            <div class="flex-1 p-4">
+                <!-- Command Line Display -->
+                <div class="gma-display border border-gray-600 rounded-lg p-4 mb-4 h-32">
+                    <div class="text-yellow-400 text-lg font-bold mb-2">Command Line</div>
+                    <div class="bg-black p-2 rounded border h-20 overflow-y-auto">
+                        <div class="text-green-400">{{ currentCommand }}</div>
+                        <div class="text-gray-400 text-xs mt-1">{{ commandHistory.slice(-3).join('\n') }}</div>
+                    </div>
+                </div>
+
+                <!-- Executor Buttons -->
+                <div class="grid grid-cols-5 gap-2 mb-4">
+                    <button 
+                        v-for="executor in executors" 
+                        :key="executor.id"
+                        @click="selectExecutor(executor.id)"
+                        :class="['gma-button p-3 rounded', selectedExecutor === executor.id ? 'bg-yellow-600' : '']"
+                    >
+                        <div class="text-xs">Exec {{ executor.id }}</div>
+                        <div class="text-yellow-400 font-bold">{{ executor.name }}</div>
+                    </button>
+                </div>
+
+                <!-- Command Buttons Grid -->
+                <div class="grid grid-cols-8 gap-2 mb-4">
+                    <!-- Function Keys -->
+                    <button 
+                        v-for="key in functionKeys" 
+                        :key="key"
+                        @click="sendCommand(key)"
+                        class="gma-button p-2 rounded text-xs"
+                    >
+                        {{ key }}
+                    </button>
+                </div>
+
+                <!-- Numeric Keypad -->
+                <div class="grid grid-cols-4 gap-2 max-w-md">
+                    <button 
+                        v-for="num in numericKeys" 
+                        :key="num"
+                        @click="addToCommand(num)"
+                        class="gma-button p-3 rounded font-bold text-lg"
+                    >
+                        {{ num }}
+                    </button>
+                    
+                    <!-- Special Command Keys -->
+                    <button @click="addToCommand('Thru')" class="gma-button p-3 rounded col-span-2">Thru</button>
+                    <button @click="addToCommand('+')" class="gma-button p-3 rounded">+</button>
+                    <button @click="addToCommand('-')" class="gma-button p-3 rounded">-</button>
+                    <button @click="addToCommand('At')" class="gma-button p-3 rounded">At</button>
+                    <button @click="addToCommand('Full')" class="gma-button p-3 rounded">Full</button>
+                    <button @click="addToCommand('/')" class="gma-button p-3 rounded">/</button>
+                    <button @click="addToCommand('*')" class="gma-button p-3 rounded">*</button>
+                    
+                    <button @click="executeCommand" class="gma-button p-3 rounded col-span-2 bg-red-600 hover:bg-red-700">
+                        ENTER
+                    </button>
+                    <button @click="clearCommand" class="gma-button p-3 rounded col-span-2 bg-orange-600 hover:bg-orange-700">
+                        CLEAR
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Panel - Encoders and Faders -->
+            <div class="w-80 bg-gray-800 p-4">
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold mb-3 text-yellow-400">Encoders</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div 
+                            v-for="encoder in encoders" 
+                            :key="encoder.id"
+                            class="gma-encoder rounded-lg p-3 text-center"
+                        >
+                            <div class="text-xs text-gray-300">{{ encoder.label }}</div>
+                            <div class="w-16 h-16 mx-auto mt-2 bg-gray-700 rounded-full border-4 border-gray-600 flex items-center justify-center">
+                                <div class="w-2 h-8 bg-yellow-400 rounded-full" :style="{ transform: `rotate(${encoder.value * 3.6}deg)` }"></div>
+                            </div>
+                            <div class="text-sm font-bold text-yellow-400 mt-1">{{ encoder.value }}%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-bold mb-3 text-yellow-400">Master Faders</h3>
+                    <div class="space-y-4">
+                        <div 
+                            v-for="fader in faders" 
+                            :key="fader.id"
+                            class="flex items-center space-x-3"
+                        >
+                            <div class="text-xs w-16">{{ fader.label }}</div>
+                            <div class="flex-1 gma-fader h-8 rounded relative">
+                                <input 
+                                    type="range" 
+                                    :value="fader.value" 
+                                    @input="updateFader(fader.id, $event.target.value)"
+                                    class="w-full h-full opacity-0 absolute top-0 left-0 cursor-pointer"
+                                    min="0" 
+                                    max="100"
+                                >
+                                <div class="absolute top-1 left-1 right-1 bottom-1 bg-gradient-to-r from-black to-yellow-400 rounded"></div>
+                                <div 
+                                    class="absolute top-0 bottom-0 w-1 bg-white rounded shadow-lg"
+                                    :style="{ left: fader.value + '%' }"
+                                ></div>
+                            </div>
+                            <div class="text-sm w-12 text-right">{{ fader.value }}%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- WebSocket Messages Log -->
+        <div class="fixed bottom-4 right-4 w-96 bg-black border border-gray-600 rounded-lg p-3 max-h-32 overflow-y-auto text-xs">
+            <div class="text-yellow-400 font-bold mb-2">WebSocket Log</div>
+            <div v-for="(message, index) in wsMessages.slice(-5)" :key="index" class="text-green-400">
+                {{ message }}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+
+        createApp({
+            setup() {
+                // WebSocket connection
+                const ws = ref(null);
+                const connectionStatus = ref('disconnected');
+                const wsMessages = ref([]);
+                
+                // Command system
+                const currentCommand = ref('');
+                const commandHistory = ref([]);
+                const selectedExecutor = ref(1);
+                
+                // UI Elements
+                const executors = ref([
+                    { id: 1, name: 'Main' },
+                    { id: 2, name: 'Scene' },
+                    { id: 3, name: 'Effect' },
+                    { id: 4, name: 'Group' },
+                    { id: 5, name: 'Preset' }
+                ]);
+
+                const encoders = ref([
+                    { id: 1, label: 'Dimmer', value: 75 },
+                    { id: 2, label: 'Pan', value: 50 },
+                    { id: 3, label: 'Tilt', value: 25 },
+                    { id: 4, label: 'Color', value: 100 }
+                ]);
+
+                const faders = ref([
+                    { id: 1, label: 'Master', value: 85 },
+                    { id: 2, label: 'Grand', value: 100 },
+                    { id: 3, label: 'Speed', value: 50 },
+                    { id: 4, label: 'Rate', value: 75 }
+                ]);
+
+                const functionKeys = ref([
+                    'Channel', 'Fixture', 'Group', 'Preset', 'Sequence', 'Cue', 'Page', 'Macro',
+                    'Edit', 'Update', 'Time', 'Fade', 'Delay', 'Speed', 'Rate', 'Temp'
+                ]);
+
+                const numericKeys = ref([
+                    '1', '2', '3', 'Please',
+                    '4', '5', '6', 'Oops',
+                    '7', '8', '9', 'Escape',
+                    '.', '0', 'Flash', 'Go+'
+                ]);
+
+                const isConnected = computed(() => connectionStatus.value === 'connected');
+
+                // WebSocket functions
+                function connectWebSocket() {
+                    if (ws.value) {
+                        ws.value.close();
+                    }
+
+                    connectionStatus.value = 'connecting';
+                    // Standard GrandMA2 OnPC WebSocket port
+                    ws.value = new WebSocket('ws://localhost:9001');
+                    
+                    ws.value.onopen = () => {
+                        connectionStatus.value = 'connected';
+                        addWsMessage('Connected to GrandMA2 OnPC');
+                        
+                        // Send initial handshake
+                        sendWebSocketMessage({
+                            command: 'login',
+                            username: 'webremote',
+                            password: ''
+                        });
+                    };
+
+                    ws.value.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            handleWebSocketMessage(data);
+                        } catch (e) {
+                            addWsMessage('Received: ' + event.data);
+                        }
+                    };
+
+                    ws.value.onclose = () => {
+                        connectionStatus.value = 'disconnected';
+                        addWsMessage('Connection closed');
+                    };
+
+                    ws.value.onerror = (error) => {
+                        connectionStatus.value = 'error';
+                        addWsMessage('Connection error');
+                        console.error('WebSocket error:', error);
+                    };
+                }
+
+                function sendWebSocketMessage(message) {
+                    if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+                        const jsonMessage = JSON.stringify(message);
+                        ws.value.send(jsonMessage);
+                        addWsMessage('Sent: ' + jsonMessage);
+                    }
+                }
+
+                function handleWebSocketMessage(data) {
+                    addWsMessage('Received: ' + JSON.stringify(data));
+                    
+                    // Handle different message types from GrandMA2
+                    switch (data.type) {
+                        case 'fader':
+                            updateFaderFromWS(data.id, data.value);
+                            break;
+                        case 'executor':
+                            updateExecutorFromWS(data.id, data.state);
+                            break;
+                        case 'command_response':
+                            handleCommandResponse(data.response);
+                            break;
+                    }
+                }
+
+                function addWsMessage(message) {
+                    wsMessages.value.push(`${new Date().toLocaleTimeString()}: ${message}`);
+                    if (wsMessages.value.length > 50) {
+                        wsMessages.value = wsMessages.value.slice(-50);
+                    }
+                }
+
+                function toggleConnection() {
+                    if (isConnected.value) {
+                        ws.value.close();
+                    } else {
+                        connectWebSocket();
+                    }
+                }
+
+                // Command functions
+                function addToCommand(value) {
+                    if (value === 'Please') {
+                        currentCommand.value += ' Please ';
+                    } else if (value === 'Oops') {
+                        // Remove last character or word
+                        currentCommand.value = currentCommand.value.slice(0, -1);
+                    } else if (value === 'Escape') {
+                        clearCommand();
+                    } else if (value === 'Flash') {
+                        currentCommand.value += ' Flash ';
+                    } else if (value === 'Go+') {
+                        executeCommand('Go+');
+                        return;
+                    } else {
+                        currentCommand.value += value + ' ';
+                    }
+                }
+
+                function sendCommand(command) {
+                    currentCommand.value = command + ' ';
+                }
+
+                function executeCommand(customCommand = null) {
+                    const command = customCommand || currentCommand.value.trim();
+                    if (command) {
+                        commandHistory.value.push(command);
+                        if (commandHistory.value.length > 100) {
+                            commandHistory.value = commandHistory.value.slice(-100);
+                        }
+
+                        // Send command to GrandMA2 via WebSocket
+                        sendWebSocketMessage({
+                            command: 'exec',
+                            text: command,
+                            executor: selectedExecutor.value
+                        });
+
+                        clearCommand();
+                    }
+                }
+
+                function clearCommand() {
+                    currentCommand.value = '';
+                }
+
+                function selectExecutor(id) {
+                    selectedExecutor.value = id;
+                    sendWebSocketMessage({
+                        command: 'select_executor',
+                        executor: id
+                    });
+                }
+
+                function updateFader(id, value) {
+                    const fader = faders.value.find(f => f.id === id);
+                    if (fader) {
+                        fader.value = parseInt(value);
+                        
+                        // Send fader update to GrandMA2
+                        sendWebSocketMessage({
+                            command: 'fader',
+                            id: id,
+                            value: fader.value
+                        });
+                    }
+                }
+
+                function updateFaderFromWS(id, value) {
+                    const fader = faders.value.find(f => f.id === id);
+                    if (fader) {
+                        fader.value = value;
+                    }
+                }
+
+                function updateExecutorFromWS(id, state) {
+                    // Update executor state based on WebSocket data
+                    const executor = executors.value.find(e => e.id === id);
+                    if (executor) {
+                        executor.state = state;
+                    }
+                }
+
+                function handleCommandResponse(response) {
+                    // Handle command response from GrandMA2
+                    addWsMessage('Command response: ' + response);
+                }
+
+                // Keyboard shortcuts
+                function handleKeydown(event) {
+                    if (event.key === 'Enter') {
+                        executeCommand();
+                    } else if (event.key === 'Escape') {
+                        clearCommand();
+                    } else if (event.key >= '0' && event.key <= '9') {
+                        addToCommand(event.key);
+                    } else if (event.key === '.') {
+                        addToCommand('.');
+                    }
+                }
+
+                onMounted(() => {
+                    document.addEventListener('keydown', handleKeydown);
+                });
+
+                onUnmounted(() => {
+                    document.removeEventListener('keydown', handleKeydown);
+                    if (ws.value) {
+                        ws.value.close();
+                    }
+                });
+
+                return {
+                    // WebSocket
+                    connectionStatus,
+                    isConnected,
+                    wsMessages,
+                    toggleConnection,
+                    
+                    // Commands
+                    currentCommand,
+                    commandHistory,
+                    selectedExecutor,
+                    addToCommand,
+                    sendCommand,
+                    executeCommand,
+                    clearCommand,
+                    selectExecutor,
+                    
+                    // UI Elements
+                    executors,
+                    encoders,
+                    faders,
+                    functionKeys,
+                    numericKeys,
+                    updateFader
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
