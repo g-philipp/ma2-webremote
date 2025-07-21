@@ -80,6 +80,13 @@
                         <label class="block text-sm font-bold mb-2">Password (optional):</label>
                         <input v-model="settings.password" type="password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
                     </div>
+                    <div>
+                        <label class="flex items-center space-x-2">
+                            <input v-model="settings.useSSL" type="checkbox" class="form-checkbox">
+                            <span class="text-sm font-bold">Use SSL (wss://)</span>
+                        </label>
+                        <p class="text-xs text-gray-400 mt-1">Enable for HTTPS pages or secure connections</p>
+                    </div>
                     <div class="flex space-x-4">
                         <button @click="saveSettings" class="flex-1 gma-button p-2 rounded">Save</button>
                         <button @click="showSettings = false" class="flex-1 gma-button p-2 rounded">Cancel</button>
@@ -304,7 +311,8 @@
                     ip: 'localhost',
                     port: 9001,
                     username: 'webremote',
-                    password: ''
+                    password: '',
+                    useSSL: false
                 });
 
                 // WebSocket
@@ -344,7 +352,14 @@
                     }
 
                     connectionStatus.value = 'connecting';
-                    const wsUrl = `ws://${settings.value.ip}:${settings.value.port}`;
+                    
+                    // Auto-detect protocol based on page protocol or user setting
+                    let protocol = 'ws://';
+                    if (settings.value.useSSL || window.location.protocol === 'https:') {
+                        protocol = 'wss://';
+                    }
+                    
+                    const wsUrl = `${protocol}${settings.value.ip}:${settings.value.port}`;
                     
                     try {
                         ws.value = new WebSocket(wsUrl);
@@ -372,18 +387,26 @@
                             }
                         };
 
-                        ws.value.onclose = () => {
+                        ws.value.onclose = (event) => {
                             connectionStatus.value = 'disconnected';
-                            addWsMessage('Connection closed');
+                            addWsMessage(`Connection closed (Code: ${event.code})`);
+                            if (event.code === 1006) {
+                                addWsMessage('Tip: Try toggling SSL setting or check if GrandMA2 OnPC is running');
+                            }
                         };
 
                         ws.value.onerror = (error) => {
                             connectionStatus.value = 'error';
-                            addWsMessage('Connection error');
+                            addWsMessage('Connection error - check IP/Port and SSL settings');
                         };
                     } catch (error) {
                         connectionStatus.value = 'error';
                         addWsMessage('Failed to connect: ' + error.message);
+                        
+                        // Suggest solutions
+                        if (error.message.includes('insecure WebSocket')) {
+                            addWsMessage('Solution: Enable SSL in settings or access page via HTTP');
+                        }
                     }
                 }
 
