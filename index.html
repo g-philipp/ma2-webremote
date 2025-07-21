@@ -8,160 +8,286 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .gma-button {
-            @apply bg-gray-800 border border-gray-600 text-white font-mono text-sm hover:bg-gray-700 active:bg-gray-600 transition-colors duration-100;
-            font-family: 'Courier New', monospace;
+            background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+            border: 2px solid #444;
+            color: #ffa500;
+            font-family: 'Arial', sans-serif;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(255, 165, 0, 0.5);
+            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0, 0, 0, 0.5);
+            transition: all 0.1s ease;
+        }
+        .gma-button:hover {
+            background: linear-gradient(145deg, #3a3a3a, #2a2a2a);
+            border-color: #666;
+            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.15), 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        .gma-button:active {
+            background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+            transform: translateY(1px);
+        }
+        .gma-button.active {
+            background: linear-gradient(145deg, #ffa500, #ff8c00);
+            color: black;
+            text-shadow: none;
+            border-color: #ff8c00;
+        }
+        .gma-encoder-wheel {
+            background: radial-gradient(circle, #333, #111);
+            border: 3px solid #555;
+            position: relative;
+        }
+        .gma-fader-track {
+            background: linear-gradient(to top, #222, #444);
+            border: 2px solid #555;
+        }
+        .gma-fader-handle {
+            background: linear-gradient(145deg, #666, #333);
+            border: 1px solid #888;
         }
         .gma-display {
             background: linear-gradient(to bottom, #1a1a1a, #0a0a0a);
+            border: 2px solid #444;
             font-family: 'Courier New', monospace;
         }
-        .gma-encoder {
-            background: radial-gradient(circle, #2a2a2a, #1a1a1a);
-        }
-        .gma-fader {
-            background: linear-gradient(to right, #333, #555);
+        body {
+            background: #0a0a0a;
+            font-family: Arial, sans-serif;
         }
     </style>
 </head>
-<body class="bg-black text-white font-mono">
-    <div id="app" class="min-h-screen bg-gray-900">
+<body class="bg-gray-900 text-orange-400">
+    <div id="app" class="min-h-screen">
+        <!-- Connection Settings Modal -->
+        <div v-if="showSettings" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-6 rounded-lg border-2 border-orange-400 w-96">
+                <h2 class="text-xl font-bold mb-4 text-orange-400">Connection Settings</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-bold mb-2">IP Address:</label>
+                        <input v-model="settings.ip" type="text" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white" placeholder="192.168.1.100">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-2">Port:</label>
+                        <input v-model="settings.port" type="number" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white" placeholder="9001">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-2">Username:</label>
+                        <input v-model="settings.username" type="text" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white" placeholder="webremote">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-2">Password (optional):</label>
+                        <input v-model="settings.password" type="password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                    </div>
+                    <div class="flex space-x-4">
+                        <button @click="saveSettings" class="flex-1 gma-button p-2 rounded">Save</button>
+                        <button @click="showSettings = false" class="flex-1 gma-button p-2 rounded">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Header -->
-        <div class="bg-black p-4 border-b border-gray-700">
-            <div class="flex items-center justify-between">
-                <h1 class="text-xl font-bold">GrandMA2 OnPC v3.1.2.5 - Command Interface</h1>
-                <div class="flex items-center space-x-4">
-                    <div class="flex items-center space-x-2">
-                        <div :class="['w-3 h-3 rounded-full', connectionStatus === 'connected' ? 'bg-green-500' : connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500']"></div>
-                        <span class="text-sm">{{ connectionStatus }}</span>
+        <div class="bg-black p-2 border-b border-gray-700 flex justify-between items-center">
+            <h1 class="text-lg font-bold">GrandMA2 OnPC Command Interface</h1>
+            <div class="flex items-center space-x-4">
+                <button @click="showSettings = true" class="gma-button px-3 py-1 rounded text-xs">Settings</button>
+                <div class="flex items-center space-x-2">
+                    <div :class="['w-2 h-2 rounded-full', connectionStatus === 'connected' ? 'bg-green-500' : connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500']"></div>
+                    <span class="text-xs">{{ connectionStatus }}</span>
+                </div>
+                <button @click="toggleConnection" class="gma-button px-3 py-1 rounded text-xs">
+                    {{ isConnected ? 'Disconnect' : 'Connect' }}
+                </button>
+            </div>
+        </div>
+
+        <div class="flex h-screen p-2">
+            <!-- Left Column -->
+            <div class="flex flex-col space-y-1 w-16">
+                <!-- Column 1 buttons -->
+                <button class="gma-button h-12 text-xs rounded">Encoder Settings</button>
+                <button class="gma-button h-12 text-xs rounded">Blind</button>
+                <button class="gma-button h-12 text-xs rounded">Fix</button>
+                <button class="gma-button h-12 text-xs rounded">Temp</button>
+                <button class="gma-button h-12 text-xs rounded"><<<</button>
+                <button class="gma-button h-12 text-xs rounded">Go -</button>
+                <button class="gma-button h-12 text-xs rounded">Time</button>
+                <button class="gma-button h-12 text-xs rounded">Edit</button>
+                <button class="gma-button h-12 text-xs rounded">Update</button>
+                <button class="gma-button h-12 text-xs rounded">Store</button>
+                <button class="gma-button h-12 text-xs rounded">Back</button>
+                <button class="gma-button h-12 text-xs rounded">User 1</button>
+                <button class="gma-button h-12 text-xs rounded">User 2</button>
+                <button class="gma-button h-12 text-xs rounded">List</button>
+            </div>
+
+            <!-- Column 2 -->
+            <div class="flex flex-col space-y-1 w-16 ml-1">
+                <button class="gma-button h-12 text-xs rounded">Freeze</button>
+                <button class="gma-button h-12 text-xs rounded">Select</button>
+                <button class="gma-button h-12 text-xs rounded">Top</button>
+                <button class="gma-button h-12 text-xs rounded">Learn</button>
+                <button class="gma-button h-12 text-xs rounded">Pause</button>
+                <button class="gma-button h-12 text-xs rounded">Esc</button>
+                <button class="gma-button h-12 text-xs rounded">Oops</button>
+                <button class="gma-button h-12 text-xs rounded">Clear</button>
+            </div>
+
+            <!-- Column 3 -->
+            <div class="flex flex-col space-y-1 w-16 ml-1">
+                <button class="gma-button h-12 text-xs rounded">Prvw</button>
+                <button class="gma-button h-12 text-xs rounded">Off</button>
+                <button class="gma-button h-12 text-xs rounded">On</button>
+                <button class="gma-button h-12 text-xs rounded">>>></button>
+                <button class="gma-button h-12 text-xs rounded">Go +</button>
+            </div>
+
+            <!-- Column 4 -->
+            <div class="flex flex-col space-y-1 w-16 ml-1">
+                <button class="gma-button h-12 text-xs rounded">Tools</button>
+                <button class="gma-button h-12 text-xs rounded">Assign</button>
+                <button class="gma-button h-12 text-xs rounded">View</button>
+                <button class="gma-button h-12 text-xs rounded">Page</button>
+                <button class="gma-button h-12 text-xs rounded">Sequ</button>
+                <button @click="addToCommand('Channel ')" class="gma-button h-12 text-xs rounded">Channel</button>
+            </div>
+
+            <!-- Column 5 -->
+            <div class="flex flex-col space-y-1 w-16 ml-1">
+                <button class="gma-button h-12 text-xs rounded">Setup</button>
+                <button class="gma-button h-12 text-xs rounded">Align</button>
+                <button class="gma-button h-12 text-xs rounded">Effect</button>
+                <button class="gma-button h-12 text-xs rounded">Macro</button>
+                <button class="gma-button h-12 text-xs rounded">Cue</button>
+                <button @click="addToCommand('Fixture ')" class="gma-button h-12 text-xs rounded">Fixture</button>
+            </div>
+
+            <!-- Column 6 -->
+            <div class="flex flex-col space-y-1 w-16 ml-1">
+                <button class="gma-button h-12 text-xs rounded">Backup</button>
+                <button class="gma-button h-12 text-xs rounded">Help</button>
+                <button class="gma-button h-12 text-xs rounded">Goto</button>
+                <button class="gma-button h-12 text-xs rounded">Preset</button>
+                <button class="gma-button h-12 text-xs rounded">Exec</button>
+                <button @click="addToCommand('Group ')" class="gma-button h-12 text-xs rounded">Group</button>
+            </div>
+
+            <!-- Numeric Keypad Section -->
+            <div class="flex flex-col ml-4">
+                <!-- Number pad row 1 -->
+                <div class="flex space-x-1 mb-1">
+                    <button @click="addToCommand('7')" class="gma-button w-12 h-12 text-lg font-bold rounded">7</button>
+                    <button @click="addToCommand('8')" class="gma-button w-12 h-12 text-lg font-bold rounded">8</button>
+                    <button @click="addToCommand('9')" class="gma-button w-12 h-12 text-lg font-bold rounded">9</button>
+                    <button @click="addToCommand(' + ')" class="gma-button w-12 h-12 text-lg font-bold rounded">+</button>
+                </div>
+                <!-- Number pad row 2 -->
+                <div class="flex space-x-1 mb-1">
+                    <button @click="addToCommand('4')" class="gma-button w-12 h-12 text-lg font-bold rounded">4</button>
+                    <button @click="addToCommand('5')" class="gma-button w-12 h-12 text-lg font-bold rounded">5</button>
+                    <button @click="addToCommand('6')" class="gma-button w-12 h-12 text-lg font-bold rounded">6</button>
+                    <button @click="addToCommand(' Thru ')" class="gma-button w-12 h-12 text-xs font-bold rounded">Thru</button>
+                </div>
+                <!-- Number pad row 3 -->
+                <div class="flex space-x-1 mb-1">
+                    <button @click="addToCommand('1')" class="gma-button w-12 h-12 text-lg font-bold rounded">1</button>
+                    <button @click="addToCommand('2')" class="gma-button w-12 h-12 text-lg font-bold rounded">2</button>
+                    <button @click="addToCommand('3')" class="gma-button w-12 h-12 text-lg font-bold rounded">3</button>
+                    <button @click="addToCommand(' - ')" class="gma-button w-12 h-12 text-lg font-bold rounded">-</button>
+                </div>
+                <!-- Number pad row 4 -->
+                <div class="flex space-x-1 mb-1">
+                    <button @click="addToCommand('0')" class="gma-button w-12 h-12 text-lg font-bold rounded">0</button>
+                    <button @click="addToCommand('.')" class="gma-button w-12 h-12 text-lg font-bold rounded">.</button>
+                    <button @click="addToCommand(' If ')" class="gma-button w-12 h-12 text-xs font-bold rounded">If</button>
+                    <button @click="addToCommand(' At ')" class="gma-button w-12 h-12 text-xs font-bold rounded">AT</button>
+                </div>
+                
+                <!-- MA and Please buttons -->
+                <div class="flex space-x-1 mb-1">
+                    <button class="gma-button w-12 h-12 text-xs font-bold rounded active">MA</button>
+                    <button @click="executeCommand()" class="gma-button w-36 h-12 text-sm font-bold rounded">Please</button>
+                </div>
+
+                <!-- Bottom row special buttons -->
+                <div class="flex space-x-1 mb-4">
+                    <button @click="addToCommand(' Full ')" class="gma-button w-12 h-12 text-xs rounded">Full</button>
+                    <button @click="addToCommand(' Highlight ')" class="gma-button w-12 h-12 text-xs rounded">Highlight</button>
+                    <button @click="addToCommand(' Solo ')" class="gma-button w-12 h-12 text-xs rounded">Solo</button>
+                </div>
+
+                <!-- Encoder wheel -->
+                <div class="flex justify-center mb-4">
+                    <div class="relative">
+                        <div class="gma-encoder-wheel w-20 h-20 rounded-full flex items-center justify-center">
+                            <div class="text-xs font-bold">△</div>
+                        </div>
+                        <button class="gma-button w-8 h-6 absolute -top-1 left-1/2 transform -translate-x-1/2 text-xs">Up</button>
+                        <button class="gma-button w-8 h-6 absolute -bottom-1 left-1/2 transform -translate-x-1/2 text-xs">Down</button>
+                        <button class="gma-button w-8 h-6 absolute top-1/2 -left-1 transform -translate-y-1/2 text-xs">Prev</button>
+                        <button class="gma-button w-8 h-6 absolute top-1/2 -right-1 transform -translate-y-1/2 text-xs">Next</button>
+                        <button class="gma-button w-8 h-6 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs">Set</button>
                     </div>
-                    <button @click="toggleConnection" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm">
-                        {{ isConnected ? 'Disconnect' : 'Connect' }}
-                    </button>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="flex flex-col ml-4 w-20">
+                <button class="gma-button h-12 text-xs rounded mb-1">CMD (Ser.)</button>
+                <button class="gma-button h-12 text-xs rounded mb-1">Shortcut (Ins)</button>
+                <button class="gma-button h-12 text-xs rounded mb-1">Delete</button>
+                <button class="gma-button h-12 text-xs rounded mb-1">Copy</button>
+                <button class="gma-button h-12 text-xs rounded mb-1">Move</button>
+                <button class="gma-button h-12 text-xs rounded mb-1">B.O.</button>
+                <button class="gma-button h-12 text-xs rounded mb-1">Grand</button>
+                
+                <!-- Empty space for alignment -->
+                <div class="flex-1"></div>
+                
+                <!-- Command Overlay Button -->
+                <button class="gma-button h-16 text-xs rounded mb-2">Command Overlay</button>
+            </div>
+
+            <!-- Far Right - Masters and Screens -->
+            <div class="flex flex-col ml-4 w-24">
+                <div class="text-xs text-center mb-2">Masters</div>
+                <div class="text-xs text-center mb-2">Extern 1</div>
+                <div class="text-xs text-center mb-2">Extern 2</div>
+                <div class="text-xs text-center mb-2">Executor 1 - 15</div>
+                <div class="text-xs text-center mb-2">101 - 115</div>
+                <div class="text-xs text-center mb-2">Executor 16 - 30</div>
+                <div class="text-xs text-center mb-2">116 - 130</div>
+                
+                <div class="bg-gray-800 p-2 rounded text-xs text-center mb-2">Screen 2</div>
+                <div class="bg-gray-800 p-2 rounded text-xs text-center mb-2">Screen 3</div>
+                <div class="bg-gray-800 p-2 rounded text-xs text-center mb-2">Screen 4</div>
+
+                <!-- Grand Master Fader -->
+                <div class="flex items-center justify-center mt-4">
+                    <div class="text-xs mr-2">100%</div>
+                    <div class="gma-fader-track w-4 h-32 rounded relative">
+                        <div class="gma-fader-handle w-6 h-4 rounded absolute -left-1" :style="{ bottom: grandMaster + '%' }"></div>
+                    </div>
+                    <div class="text-xs ml-2">Master</div>
                 </div>
             </div>
         </div>
 
-        <div class="flex h-screen">
-            <!-- Main Command Area -->
-            <div class="flex-1 p-4">
-                <!-- Command Line Display -->
-                <div class="gma-display border border-gray-600 rounded-lg p-4 mb-4 h-32">
-                    <div class="text-yellow-400 text-lg font-bold mb-2">Command Line</div>
-                    <div class="bg-black p-2 rounded border h-20 overflow-y-auto">
-                        <div class="text-green-400">{{ currentCommand }}</div>
-                        <div class="text-gray-400 text-xs mt-1">{{ commandHistory.slice(-3).join('\n') }}</div>
-                    </div>
-                </div>
-
-                <!-- Executor Buttons -->
-                <div class="grid grid-cols-5 gap-2 mb-4">
-                    <button 
-                        v-for="executor in executors" 
-                        :key="executor.id"
-                        @click="selectExecutor(executor.id)"
-                        :class="['gma-button p-3 rounded', selectedExecutor === executor.id ? 'bg-yellow-600' : '']"
-                    >
-                        <div class="text-xs">Exec {{ executor.id }}</div>
-                        <div class="text-yellow-400 font-bold">{{ executor.name }}</div>
-                    </button>
-                </div>
-
-                <!-- Command Buttons Grid -->
-                <div class="grid grid-cols-8 gap-2 mb-4">
-                    <!-- Function Keys -->
-                    <button 
-                        v-for="key in functionKeys" 
-                        :key="key"
-                        @click="sendCommand(key)"
-                        class="gma-button p-2 rounded text-xs"
-                    >
-                        {{ key }}
-                    </button>
-                </div>
-
-                <!-- Numeric Keypad -->
-                <div class="grid grid-cols-4 gap-2 max-w-md">
-                    <button 
-                        v-for="num in numericKeys" 
-                        :key="num"
-                        @click="addToCommand(num)"
-                        class="gma-button p-3 rounded font-bold text-lg"
-                    >
-                        {{ num }}
-                    </button>
-                    
-                    <!-- Special Command Keys -->
-                    <button @click="addToCommand('Thru')" class="gma-button p-3 rounded col-span-2">Thru</button>
-                    <button @click="addToCommand('+')" class="gma-button p-3 rounded">+</button>
-                    <button @click="addToCommand('-')" class="gma-button p-3 rounded">-</button>
-                    <button @click="addToCommand('At')" class="gma-button p-3 rounded">At</button>
-                    <button @click="addToCommand('Full')" class="gma-button p-3 rounded">Full</button>
-                    <button @click="addToCommand('/')" class="gma-button p-3 rounded">/</button>
-                    <button @click="addToCommand('*')" class="gma-button p-3 rounded">*</button>
-                    
-                    <button @click="executeCommand" class="gma-button p-3 rounded col-span-2 bg-red-600 hover:bg-red-700">
-                        ENTER
-                    </button>
-                    <button @click="clearCommand" class="gma-button p-3 rounded col-span-2 bg-orange-600 hover:bg-orange-700">
-                        CLEAR
-                    </button>
-                </div>
-            </div>
-
-            <!-- Right Panel - Encoders and Faders -->
-            <div class="w-80 bg-gray-800 p-4">
-                <div class="mb-6">
-                    <h3 class="text-lg font-bold mb-3 text-yellow-400">Encoders</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div 
-                            v-for="encoder in encoders" 
-                            :key="encoder.id"
-                            class="gma-encoder rounded-lg p-3 text-center"
-                        >
-                            <div class="text-xs text-gray-300">{{ encoder.label }}</div>
-                            <div class="w-16 h-16 mx-auto mt-2 bg-gray-700 rounded-full border-4 border-gray-600 flex items-center justify-center">
-                                <div class="w-2 h-8 bg-yellow-400 rounded-full" :style="{ transform: `rotate(${encoder.value * 3.6}deg)` }"></div>
-                            </div>
-                            <div class="text-sm font-bold text-yellow-400 mt-1">{{ encoder.value }}%</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="text-lg font-bold mb-3 text-yellow-400">Master Faders</h3>
-                    <div class="space-y-4">
-                        <div 
-                            v-for="fader in faders" 
-                            :key="fader.id"
-                            class="flex items-center space-x-3"
-                        >
-                            <div class="text-xs w-16">{{ fader.label }}</div>
-                            <div class="flex-1 gma-fader h-8 rounded relative">
-                                <input 
-                                    type="range" 
-                                    :value="fader.value" 
-                                    @input="updateFader(fader.id, $event.target.value)"
-                                    class="w-full h-full opacity-0 absolute top-0 left-0 cursor-pointer"
-                                    min="0" 
-                                    max="100"
-                                >
-                                <div class="absolute top-1 left-1 right-1 bottom-1 bg-gradient-to-r from-black to-yellow-400 rounded"></div>
-                                <div 
-                                    class="absolute top-0 bottom-0 w-1 bg-white rounded shadow-lg"
-                                    :style="{ left: fader.value + '%' }"
-                                ></div>
-                            </div>
-                            <div class="text-sm w-12 text-right">{{ fader.value }}%</div>
-                        </div>
-                    </div>
-                </div>
+        <!-- Command Line Display -->
+        <div class="fixed bottom-4 left-4 right-4 gma-display rounded-lg p-4 h-24">
+            <div class="text-orange-400 text-sm font-bold mb-2">Command Line:</div>
+            <div class="bg-black p-2 rounded border text-green-400 font-mono text-lg">
+                <span class="text-orange-400">{{ currentCommand }}</span>
+                <span class="animate-pulse">_</span>
             </div>
         </div>
 
-        <!-- WebSocket Messages Log -->
-        <div class="fixed bottom-4 right-4 w-96 bg-black border border-gray-600 rounded-lg p-3 max-h-32 overflow-y-auto text-xs">
-            <div class="text-yellow-400 font-bold mb-2">WebSocket Log</div>
-            <div v-for="(message, index) in wsMessages.slice(-5)" :key="index" class="text-green-400">
+        <!-- WebSocket Log -->
+        <div class="fixed top-20 right-4 w-64 bg-black border border-orange-400 rounded-lg p-2 max-h-32 overflow-y-auto text-xs">
+            <div class="text-orange-400 font-bold mb-1">WebSocket Log:</div>
+            <div v-for="(message, index) in wsMessages.slice(-5)" :key="index" class="text-green-400 text-xs">
                 {{ message }}
             </div>
         </div>
@@ -172,7 +298,16 @@
 
         createApp({
             setup() {
-                // WebSocket connection
+                // Settings
+                const showSettings = ref(false);
+                const settings = ref({
+                    ip: 'localhost',
+                    port: 9001,
+                    username: 'webremote',
+                    password: ''
+                });
+
+                // WebSocket
                 const ws = ref(null);
                 const connectionStatus = ref('disconnected');
                 const wsMessages = ref([]);
@@ -180,44 +315,27 @@
                 // Command system
                 const currentCommand = ref('');
                 const commandHistory = ref([]);
-                const selectedExecutor = ref(1);
                 
-                // UI Elements
-                const executors = ref([
-                    { id: 1, name: 'Main' },
-                    { id: 2, name: 'Scene' },
-                    { id: 3, name: 'Effect' },
-                    { id: 4, name: 'Group' },
-                    { id: 5, name: 'Preset' }
-                ]);
-
-                const encoders = ref([
-                    { id: 1, label: 'Dimmer', value: 75 },
-                    { id: 2, label: 'Pan', value: 50 },
-                    { id: 3, label: 'Tilt', value: 25 },
-                    { id: 4, label: 'Color', value: 100 }
-                ]);
-
-                const faders = ref([
-                    { id: 1, label: 'Master', value: 85 },
-                    { id: 2, label: 'Grand', value: 100 },
-                    { id: 3, label: 'Speed', value: 50 },
-                    { id: 4, label: 'Rate', value: 75 }
-                ]);
-
-                const functionKeys = ref([
-                    'Channel', 'Fixture', 'Group', 'Preset', 'Sequence', 'Cue', 'Page', 'Macro',
-                    'Edit', 'Update', 'Time', 'Fade', 'Delay', 'Speed', 'Rate', 'Temp'
-                ]);
-
-                const numericKeys = ref([
-                    '1', '2', '3', 'Please',
-                    '4', '5', '6', 'Oops',
-                    '7', '8', '9', 'Escape',
-                    '.', '0', 'Flash', 'Go+'
-                ]);
+                // UI state
+                const grandMaster = ref(85);
 
                 const isConnected = computed(() => connectionStatus.value === 'connected');
+
+                // Settings functions
+                function saveSettings() {
+                    showSettings.value = false;
+                    // Save to local storage if needed
+                    localStorage.setItem('gma2_settings', JSON.stringify(settings.value));
+                    addWsMessage('Settings saved');
+                }
+
+                // Load settings on startup
+                function loadSettings() {
+                    const saved = localStorage.getItem('gma2_settings');
+                    if (saved) {
+                        settings.value = { ...settings.value, ...JSON.parse(saved) };
+                    }
+                }
 
                 // WebSocket functions
                 function connectWebSocket() {
@@ -226,71 +344,68 @@
                     }
 
                     connectionStatus.value = 'connecting';
-                    // Standard GrandMA2 OnPC WebSocket port
-                    ws.value = new WebSocket('ws://localhost:9001');
+                    const wsUrl = `ws://${settings.value.ip}:${settings.value.port}`;
                     
-                    ws.value.onopen = () => {
-                        connectionStatus.value = 'connected';
-                        addWsMessage('Connected to GrandMA2 OnPC');
+                    try {
+                        ws.value = new WebSocket(wsUrl);
                         
-                        // Send initial handshake
-                        sendWebSocketMessage({
-                            command: 'login',
-                            username: 'webremote',
-                            password: ''
-                        });
-                    };
+                        ws.value.onopen = () => {
+                            connectionStatus.value = 'connected';
+                            addWsMessage(`Connected to ${wsUrl}`);
+                            
+                            // Send login if username provided
+                            if (settings.value.username) {
+                                sendWebSocketMessage({
+                                    command: 'login',
+                                    username: settings.value.username,
+                                    password: settings.value.password || ''
+                                });
+                            }
+                        };
 
-                    ws.value.onmessage = (event) => {
-                        try {
-                            const data = JSON.parse(event.data);
-                            handleWebSocketMessage(data);
-                        } catch (e) {
-                            addWsMessage('Received: ' + event.data);
-                        }
-                    };
+                        ws.value.onmessage = (event) => {
+                            try {
+                                const data = JSON.parse(event.data);
+                                handleWebSocketMessage(data);
+                            } catch (e) {
+                                addWsMessage('RX: ' + event.data);
+                            }
+                        };
 
-                    ws.value.onclose = () => {
-                        connectionStatus.value = 'disconnected';
-                        addWsMessage('Connection closed');
-                    };
+                        ws.value.onclose = () => {
+                            connectionStatus.value = 'disconnected';
+                            addWsMessage('Connection closed');
+                        };
 
-                    ws.value.onerror = (error) => {
+                        ws.value.onerror = (error) => {
+                            connectionStatus.value = 'error';
+                            addWsMessage('Connection error');
+                        };
+                    } catch (error) {
                         connectionStatus.value = 'error';
-                        addWsMessage('Connection error');
-                        console.error('WebSocket error:', error);
-                    };
+                        addWsMessage('Failed to connect: ' + error.message);
+                    }
                 }
 
                 function sendWebSocketMessage(message) {
                     if (ws.value && ws.value.readyState === WebSocket.OPEN) {
                         const jsonMessage = JSON.stringify(message);
                         ws.value.send(jsonMessage);
-                        addWsMessage('Sent: ' + jsonMessage);
+                        addWsMessage('TX: ' + jsonMessage);
+                    } else {
+                        addWsMessage('Not connected');
                     }
                 }
 
                 function handleWebSocketMessage(data) {
-                    addWsMessage('Received: ' + JSON.stringify(data));
-                    
-                    // Handle different message types from GrandMA2
-                    switch (data.type) {
-                        case 'fader':
-                            updateFaderFromWS(data.id, data.value);
-                            break;
-                        case 'executor':
-                            updateExecutorFromWS(data.id, data.state);
-                            break;
-                        case 'command_response':
-                            handleCommandResponse(data.response);
-                            break;
-                    }
+                    addWsMessage('RX: ' + JSON.stringify(data));
                 }
 
                 function addWsMessage(message) {
-                    wsMessages.value.push(`${new Date().toLocaleTimeString()}: ${message}`);
-                    if (wsMessages.value.length > 50) {
-                        wsMessages.value = wsMessages.value.slice(-50);
+                    const timestamp = new Date().toLocaleTimeString();
+                    wsMessages.value.push(`${timestamp}: ${message}`);
+                    if (wsMessages.value.length > 100) {
+                        wsMessages.value = wsMessages.value.slice(-100);
                     }
                 }
 
@@ -304,43 +419,22 @@
 
                 // Command functions
                 function addToCommand(value) {
-                    if (value === 'Please') {
-                        currentCommand.value += ' Please ';
-                    } else if (value === 'Oops') {
-                        // Remove last character or word
-                        currentCommand.value = currentCommand.value.slice(0, -1);
-                    } else if (value === 'Escape') {
-                        clearCommand();
-                    } else if (value === 'Flash') {
-                        currentCommand.value += ' Flash ';
-                    } else if (value === 'Go+') {
-                        executeCommand('Go+');
-                        return;
-                    } else {
-                        currentCommand.value += value + ' ';
-                    }
+                    currentCommand.value += value;
                 }
 
-                function sendCommand(command) {
-                    currentCommand.value = command + ' ';
-                }
-
-                function executeCommand(customCommand = null) {
-                    const command = customCommand || currentCommand.value.trim();
+                function executeCommand() {
+                    const command = currentCommand.value.trim();
                     if (command) {
                         commandHistory.value.push(command);
-                        if (commandHistory.value.length > 100) {
-                            commandHistory.value = commandHistory.value.slice(-100);
-                        }
-
-                        // Send command to GrandMA2 via WebSocket
+                        
+                        // Send to GrandMA2
                         sendWebSocketMessage({
-                            command: 'exec',
-                            text: command,
-                            executor: selectedExecutor.value
+                            command: 'cmd',
+                            text: command
                         });
 
-                        clearCommand();
+                        addWsMessage('Command: ' + command);
+                        currentCommand.value = '';
                     }
                 }
 
@@ -348,51 +442,10 @@
                     currentCommand.value = '';
                 }
 
-                function selectExecutor(id) {
-                    selectedExecutor.value = id;
-                    sendWebSocketMessage({
-                        command: 'select_executor',
-                        executor: id
-                    });
-                }
-
-                function updateFader(id, value) {
-                    const fader = faders.value.find(f => f.id === id);
-                    if (fader) {
-                        fader.value = parseInt(value);
-                        
-                        // Send fader update to GrandMA2
-                        sendWebSocketMessage({
-                            command: 'fader',
-                            id: id,
-                            value: fader.value
-                        });
-                    }
-                }
-
-                function updateFaderFromWS(id, value) {
-                    const fader = faders.value.find(f => f.id === id);
-                    if (fader) {
-                        fader.value = value;
-                    }
-                }
-
-                function updateExecutorFromWS(id, state) {
-                    // Update executor state based on WebSocket data
-                    const executor = executors.value.find(e => e.id === id);
-                    if (executor) {
-                        executor.state = state;
-                    }
-                }
-
-                function handleCommandResponse(response) {
-                    // Handle command response from GrandMA2
-                    addWsMessage('Command response: ' + response);
-                }
-
-                // Keyboard shortcuts
+                // Keyboard handling
                 function handleKeydown(event) {
                     if (event.key === 'Enter') {
+                        event.preventDefault();
                         executeCommand();
                     } else if (event.key === 'Escape') {
                         clearCommand();
@@ -400,10 +453,17 @@
                         addToCommand(event.key);
                     } else if (event.key === '.') {
                         addToCommand('.');
+                    } else if (event.key === '+') {
+                        addToCommand(' + ');
+                    } else if (event.key === '-') {
+                        addToCommand(' - ');
+                    } else if (event.key === 'Backspace') {
+                        currentCommand.value = currentCommand.value.slice(0, -1);
                     }
                 }
 
                 onMounted(() => {
+                    loadSettings();
                     document.addEventListener('keydown', handleKeydown);
                 });
 
@@ -415,6 +475,11 @@
                 });
 
                 return {
+                    // Settings
+                    showSettings,
+                    settings,
+                    saveSettings,
+                    
                     // WebSocket
                     connectionStatus,
                     isConnected,
@@ -424,20 +489,12 @@
                     // Commands
                     currentCommand,
                     commandHistory,
-                    selectedExecutor,
                     addToCommand,
-                    sendCommand,
                     executeCommand,
                     clearCommand,
-                    selectExecutor,
                     
-                    // UI Elements
-                    executors,
-                    encoders,
-                    faders,
-                    functionKeys,
-                    numericKeys,
-                    updateFader
+                    // UI
+                    grandMaster
                 };
             }
         }).mount('#app');
