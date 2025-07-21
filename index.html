@@ -77,8 +77,8 @@
                         <input v-model="settings.username" type="text" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white" placeholder="webremote">
                     </div>
                     <div>
-                        <label class="block text-sm font-bold mb-2">Password (optional):</label>
-                        <input v-model="settings.password" type="password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                        <label for="password" class="block text-sm font-bold mb-2">Password (optional):</label>
+                        <input id="password" v-model="settings.password" type="password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
                     </div>
                     <div>
                         <label class="flex items-center space-x-2">
@@ -309,7 +309,7 @@
                 const showSettings = ref(false);
                 const settings = ref({
                     ip: 'localhost',
-                    port: 9001,
+                    port: "",
                     username: 'webremote',
                     password: '',
                     useSSL: false
@@ -359,7 +359,10 @@
                         protocol = 'wss://';
                     }
                     
-                    const wsUrl = `${protocol}${settings.value.ip}:${settings.value.port}`;
+                    let wsUrl = `${protocol}${settings.value.ip}`;
+                    if(settings.value.port){
+                        wsUrl += `:${settings.value.port}`;
+                    }
                     
                     try {
                         ws.value = new WebSocket(wsUrl);
